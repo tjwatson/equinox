@@ -17,7 +17,7 @@ package org.eclipse.osgi.storage.url.reference;
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLConnection;
-import org.eclipse.equinox.plurl.PlurlStreamHandlerBase;
+import java.net.URLStreamHandler;
 
 /**
  * URLStreamHandler for reference protocol. A reference URL is used to hold a
@@ -32,7 +32,7 @@ import org.eclipse.equinox.plurl.PlurlStreamHandlerBase;
  *     reference:file:/eclispe/plugins/org.eclipse.mybundle_1.0.0.jar
  * </pre>
  */
-public class Handler extends PlurlStreamHandlerBase {
+public class Handler extends URLStreamHandler {
 
 	private final String installPath;
 
@@ -47,7 +47,7 @@ public class Handler extends PlurlStreamHandlerBase {
 	}
 
 	@Override
-	public URLConnection openConnection(URL url) throws IOException {
+	protected URLConnection openConnection(URL url) throws IOException {
 		return new ReferenceURLConnection(url, installPath);
 	}
 

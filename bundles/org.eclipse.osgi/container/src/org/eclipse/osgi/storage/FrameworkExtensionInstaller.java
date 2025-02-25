@@ -14,6 +14,7 @@
 package org.eclipse.osgi.storage;
 
 import java.io.File;
+import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
@@ -36,6 +37,7 @@ import org.eclipse.osgi.internal.framework.EquinoxConfiguration;
 import org.eclipse.osgi.internal.hookregistry.ActivatorHookFactory;
 import org.eclipse.osgi.internal.hookregistry.HookRegistry;
 import org.eclipse.osgi.internal.messages.Msg;
+import org.eclipse.osgi.internal.url.MultiplexingFactory;
 import org.eclipse.osgi.storage.BundleInfo.Generation;
 import org.eclipse.osgi.storage.ContentProvider.Type;
 import org.eclipse.osgi.util.NLS;
@@ -59,29 +61,34 @@ public class FrameworkExtensionInstaller {
 	private static Method findAddURLMethod(ClassLoader cl, String name) {
 		if (cl == null)
 			return null;
-		return findMethod(cl.getClass(), name, new Class[] { URL.class });
+		return findMethod(cl.getClass(), name, new Class[] { URL.class }, MultiplexingFactory.setAccessible);
 	}
 
 	private static Method findAddFilePathMethod(ClassLoader cl, String name) {
 		if (cl == null)
 			return null;
-		return findMethod(cl.getClass(), name, new Class[] { String.class });
+		return findMethod(cl.getClass(), name, new Class[] { String.class }, MultiplexingFactory.setAccessible);
 	}
 
 	// recursively searches a class and it's superclasses for a (potentially
 	// inaccessable) method
-	private static Method findMethod(Class<?> clazz, String name, Class<?>[] args) {
+	private static Method findMethod(Class<?> clazz, String name, Class<?>[] args,
+			Collection<AccessibleObject> setAccessible) {
 		if (clazz == null)
 			return null; // ends the recursion when getSuperClass returns null
 		try {
 			Method result = clazz.getDeclaredMethod(name, args);
-			result.setAccessible(true);
+			if (setAccessible != null) {
+				setAccessible.add(result);
+			} else {
+				result.setAccessible(true);
+			}
 			return result;
 		} catch (NoSuchMethodException | RuntimeException e) {
 			// do nothing look in super class below
 			// have to avoid blowing up <clinit>
 		}
-		return findMethod(clazz.getSuperclass(), name, args);
+		return findMethod(clazz.getSuperclass(), name, args, setAccessible);
 	}
 
 	private static void callAddURLMethod(URL arg) throws InvocationTargetException {

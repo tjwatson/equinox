@@ -21,8 +21,8 @@ import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
+import java.net.URLStreamHandler;
 import java.util.Objects;
-import org.eclipse.equinox.plurl.PlurlStreamHandlerBase;
 import org.eclipse.osgi.container.Module;
 import org.eclipse.osgi.container.ModuleContainer;
 import org.eclipse.osgi.internal.messages.Msg;
@@ -35,7 +35,7 @@ import org.osgi.framework.Bundle;
  * URLStreamHandler the bundleentry and bundleresource protocols.
  */
 
-public abstract class BundleResourceHandler extends PlurlStreamHandlerBase {
+public abstract class BundleResourceHandler extends URLStreamHandler {
 	// Bundle resource URL protocol
 	public static final String OSGI_RESOURCE_URL_PROTOCOL = "bundleresource"; //$NON-NLS-1$
 	// Bundle entry URL protocol
@@ -157,7 +157,7 @@ public abstract class BundleResourceHandler extends PlurlStreamHandlerBase {
 	 *                        establishment
 	 */
 	@Override
-	public URLConnection openConnection(URL url) throws IOException {
+	protected URLConnection openConnection(URL url) throws IOException {
 		if (bundleEntry != null) { // if the bundleEntry is not null then return quick
 			return new BundleURLConnection(url, container, bundleEntry);
 		}
@@ -204,7 +204,7 @@ public abstract class BundleResourceHandler extends PlurlStreamHandlerBase {
 	 * @return a string representation of the URL.
 	 */
 	@Override
-	public String toExternalForm(URL url) {
+	protected String toExternalForm(URL url) {
 		StringBuilder result = new StringBuilder(url.getProtocol());
 		result.append("://"); //$NON-NLS-1$
 
@@ -231,7 +231,7 @@ public abstract class BundleResourceHandler extends PlurlStreamHandlerBase {
 	}
 
 	@Override
-	public int hashCode(URL url) {
+	protected int hashCode(URL url) {
 		int hash = 0;
 		String protocol = url.getProtocol();
 		if (protocol != null)
@@ -252,22 +252,22 @@ public abstract class BundleResourceHandler extends PlurlStreamHandlerBase {
 	}
 
 	@Override
-	public boolean equals(URL url1, URL url2) {
+	protected boolean equals(URL url1, URL url2) {
 		return sameFile(url1, url2);
 	}
 
 	@Override
-	public synchronized InetAddress getHostAddress(URL url) {
+	protected synchronized InetAddress getHostAddress(URL url) {
 		return null;
 	}
 
 	@Override
-	public boolean hostsEqual(URL url1, URL url2) {
+	protected boolean hostsEqual(URL url1, URL url2) {
 		return equalsIgnoreCase(url1.getHost(), url2.getHost());
 	}
 
 	@Override
-	public boolean sameFile(URL url1, URL url2) {
+	protected boolean sameFile(URL url1, URL url2) {
 		// do a hashcode test to allow each handler to check the adaptor first
 		if (url1.hashCode() != url2.hashCode())
 			return false;
