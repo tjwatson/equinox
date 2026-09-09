@@ -1,17 +1,21 @@
 /*******************************************************************************
- * Copyright (c) 2025 IBM Corporation and others.
+ * Copyright (c) Contributors to the Eclipse Foundation
  *
- * This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License 2.0
- * which accompanies this distribution, and is available at
- * https://www.eclipse.org/legal/epl-2.0/
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * SPDX-License-Identifier: EPL-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Contributors:
- *     IBM Corporation - initial API and implementation
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
  *******************************************************************************/
-package org.eclipse.equinox.plurl;
+package org.eclipse.osgitech.plurl;
 
 import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
@@ -27,13 +31,51 @@ public interface PlurlStreamHandlerFactory extends URLStreamHandlerFactory, Plur
 	 * implement {@link PlurlStreamHandler} then deep reflection is required and the
 	 * JVM may require the "--add-opens" option in order to open the "java.net"
 	 * package for reflection. For example:
-	 * 
+	 *
 	 * <pre>
 	 * --add-opens java.base/java.net=ALL-UNNAMED
 	 * </pre>
-	 * 
+	 *
 	 * @see URLStreamHandlerFactory#createURLStreamHandler(String)
 	 */
 	@Override
 	URLStreamHandler createURLStreamHandler(String protocol);
+
+	/**
+	 * Returns true if this factory should handle the URL being parsed from the given
+	 * spec. This is consulted before the call stack is examined, and lets a factory
+	 * claim a URL that only it can own.
+	 * <p>
+	 * Several parties may share one protocol and be distinguishable only by the URL
+	 * itself, for example multiple instances of the same framework where the owner is
+	 * identified by an id in the URL host. Such a URL may also be used by a caller
+	 * that no factory recognizes from the call stack, leaving nothing else to select
+	 * on.
+	 * <p>
+	 * The spec is used rather than a {@code URL}, because selection happens while the
+	 * URL is still being parsed: its host and path are not populated yet, and the
+	 * handler is pinned to the URL as soon as parsing begins. Implementations must not
+	 * call back into URL handling, so this method is given only strings.
+	 * <p>
+	 * The spec may be relative and carry neither protocol nor host, in which case a
+	 * factory that selects on the URL has nothing to decide with and should return
+	 * false; a relative URL resolved against a context URL keeps the context's handler
+	 * and does not reach this method.
+	 * <p>
+	 * The spec may also be <code>null</code>. That is the protocol level question,
+	 * asked before any URL exists, because the JVM asks a plurl implementation once
+	 * per protocol whether it handles that protocol at all and gives it no URL. A
+	 * factory that selects on the URL must answer <code>true</code> for a protocol
+	 * whose URLs it claims, or the protocol is never claimed from the JVM and no URL
+	 * of it is ever parsed. Implementations must therefore not assume a non-null spec.
+	 *
+	 * @param protocol the protocol of the URL being parsed
+	 * @param spec     the spec the URL is being parsed from, which may be relative,
+	 *                 or null when the question is about the protocol alone
+	 * @return true if this factory should handle the URL
+	 * @see Plurl#PLURL_CAPABILITY_SELECT_BY_SPEC
+	 */
+	default boolean shouldHandleURL(String protocol, String spec) {
+		return false;
+	}
 }

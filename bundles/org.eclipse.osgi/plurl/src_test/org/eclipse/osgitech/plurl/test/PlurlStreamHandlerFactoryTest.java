@@ -1,21 +1,26 @@
 /*******************************************************************************
- * Copyright (c) 2025 IBM Corporation and others.
+ * Copyright (c) Contributors to the Eclipse Foundation
  *
- * This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License 2.0
- * which accompanies this distribution, and is available at
- * https://www.eclipse.org/legal/epl-2.0/
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * SPDX-License-Identifier: EPL-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Contributors:
- *     IBM Corporation - initial API and implementation
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
  *******************************************************************************/
-package org.eclipse.equinox.plurl.test;
+package org.eclipse.osgitech.plurl.test;
 
-import static org.eclipse.equinox.plurl.test.PlurlTestHandlers.canReflect;
-import static org.eclipse.equinox.plurl.test.PlurlTestHandlers.createTestURLStreamHandlerFactory;
+import static org.eclipse.osgitech.plurl.test.PlurlTestHandlers.canReflect;
+import static org.eclipse.osgitech.plurl.test.PlurlTestHandlers.createTestURLStreamHandlerFactory;
 import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeThat;
 
@@ -25,7 +30,7 @@ import java.net.URL;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import org.eclipse.equinox.plurl.test.PlurlTestHandlers.TestFactoryType;
+import org.eclipse.osgitech.plurl.test.PlurlTestHandlers.TestFactoryType;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -167,6 +172,7 @@ public class PlurlStreamHandlerFactoryTest
 		final String TEST_PROTOCOL1 = "testprotocol1";
 		final String TEST_PROTOCOL2 = "testprotocol2";
 		final String TEST_PROTOCOL3 = "testprotocol3";
+		final String TEST_PROTOCOL4 = "testprotocol4";
 
 		PlurlTestHandlers.TestURLStreamHandlerFactory testFactory1 = createTestURLStreamHandlerFactory(type,
 				Arrays.asList(TEST_PROTOCOL1, TEST_PROTOCOL2), TesterClass1.class);
@@ -181,6 +187,17 @@ public class PlurlStreamHandlerFactoryTest
 				TEST_PROTOCOL2, TEST_PROTOCOL3);
 		handlersToUse.add(type, catchAll);
 
+		// A fourth protocol served by two factories: one that claims it by calling
+		// class the way the factories above do, and one that takes it over by URL.
+		PlurlTestHandlers.TestURLStreamHandlerFactory byClassFactory = createTestURLStreamHandlerFactory(type,
+				Collections.singletonList(TEST_PROTOCOL4), TesterClass1.class);
+		handlersToUse.add(type, byClassFactory);
+
+		PlurlTestHandlers.TestURLStreamHandlerFactory takeOverFactory = createTestURLStreamHandlerFactory(type,
+				Collections.singletonList(TEST_PROTOCOL4));
+		takeOverFactory.takeOver(TEST_PROTOCOL4);
+		handlersToUse.add(type, takeOverFactory);
+
 		if (handlersToUninstall != null) {
 			handlersToUninstall.uninstall(false);
 		}
@@ -193,6 +210,21 @@ public class PlurlStreamHandlerFactoryTest
 		checkProtocol(t2, testFactory2.TYPES, true);
 		checkProtocol(t2, Collections.singletonList(TEST_PROTOCOL1), false);
 
+		// The taken over protocol resolves from both contexts, including the one whose
+		// class no factory for that protocol claims. Only selection by URL can do
+		// that: by call stack, t2 selects testFactory2, which does not serve it.
+		checkProtocol(t1, Collections.singletonList(TEST_PROTOCOL4), true);
+		checkProtocol(t2, Collections.singletonList(TEST_PROTOCOL4), true);
+
+		// And it was served by the factory that took it over, not by the one that
+		// claims the same protocol by calling class.
+		assertEquals("the factory that took over the protocol served it", true,
+				takeOverFactory.getHandlersCreated() > 0);
+		assertEquals("the factory claiming by class was not used for the taken over protocol", 0,
+				byClassFactory.getHandlersCreated());
+
+		// Selection by call stack still works for the other protocols while a factory
+		// has taken one over.
 		checkProtocolContext(t1, t2, testFactory1.TYPES, testFactory2.TYPES);
 	}
 

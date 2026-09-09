@@ -1,17 +1,21 @@
 /*******************************************************************************
- * Copyright (c) 2026 IBM Corporation and others.
+ * Copyright (c) Contributors to the Eclipse Foundation
  *
- * This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License 2.0
- * which accompanies this distribution, and is available at
- * https://www.eclipse.org/legal/epl-2.0/
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * SPDX-License-Identifier: EPL-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Contributors:
- *     IBM Corporation - initial API and implementation
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
  *******************************************************************************/
-package org.eclipse.equinox.plurl.test.copy;
+package org.eclipse.osgitech.plurl.test.copy;
 
 import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
@@ -27,13 +31,24 @@ public interface PlurlStreamHandlerFactory extends URLStreamHandlerFactory, Plur
 	 * implement {@link PlurlStreamHandler} then deep reflection is required and the
 	 * JVM may require the "--add-opens" option in order to open the "java.net"
 	 * package for reflection. For example:
-	 * 
+	 *
 	 * <pre>
 	 * --add-opens java.base/java.net=ALL-UNNAMED
 	 * </pre>
-	 * 
+	 *
 	 * @see URLStreamHandlerFactory#createURLStreamHandler(String)
 	 */
 	@Override
 	URLStreamHandler createURLStreamHandler(String protocol);
+
+	/**
+	 * A copy of {@code PlurlStreamHandlerFactory#shouldHandleURL(String, String)},
+	 * so that a factory compiled against a different copy of the plurl package
+	 * exercises the reflective path.
+	 * <p>
+	 * The spec may be <code>null</code>, which is the protocol level question.
+	 */
+	default boolean shouldHandleURL(String protocol, String spec) {
+		return false;
+	}
 }

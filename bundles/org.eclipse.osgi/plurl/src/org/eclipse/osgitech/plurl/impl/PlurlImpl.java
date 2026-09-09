@@ -1,17 +1,21 @@
 /*******************************************************************************
- * Copyright (c) 2025 IBM Corporation and others.
+ * Copyright (c) Contributors to the Eclipse Foundation
  *
- * This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License 2.0
- * which accompanies this distribution, and is available at
- * https://www.eclipse.org/legal/epl-2.0/
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * SPDX-License-Identifier: EPL-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Contributors:
- *     IBM Corporation - initial API and implementation
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
  *******************************************************************************/
-package org.eclipse.equinox.plurl.impl;
+package org.eclipse.osgitech.plurl.impl;
 
 import java.io.IOException;
 import java.lang.ref.WeakReference;
@@ -46,11 +50,12 @@ import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import org.eclipse.equinox.plurl.Plurl;
-import org.eclipse.equinox.plurl.PlurlFactory;
-import org.eclipse.equinox.plurl.PlurlStreamHandler;
-import org.eclipse.equinox.plurl.PlurlStreamHandler.PlurlSetter;
-import org.eclipse.equinox.plurl.PlurlStreamHandlerBase;
+import org.eclipse.osgitech.plurl.Plurl;
+import org.eclipse.osgitech.plurl.PlurlFactory;
+import org.eclipse.osgitech.plurl.PlurlStreamHandler;
+import org.eclipse.osgitech.plurl.PlurlStreamHandlerFactory;
+import org.eclipse.osgitech.plurl.PlurlStreamHandler.PlurlSetter;
+import org.eclipse.osgitech.plurl.PlurlStreamHandlerBase;
 
 public final class PlurlImpl implements Plurl {
 
@@ -560,7 +565,17 @@ public final class PlurlImpl implements Plurl {
 					return null;
 				}
 			}
-			URLStreamHandlerFactoryHolder factoryHolder = findFactory(getURLStreamHandlerFactories());
+			List<URLStreamHandlerFactoryHolder> factories = getURLStreamHandlerFactories();
+			// A factory may claim this protocol by URL, which is decided per URL later
+			// in parseURL. The JVM asks us per protocol and gives us no URL, so ask the
+			// factories about the protocol alone first; otherwise a protocol only such
+			// a factory serves is declined here and the URL never gets that far.
+			for (URLStreamHandlerFactoryHolder holder : factories) {
+				if (holder.takesOverURLs(protocol) && holder.getHandler(protocol) != null) {
+					return new PlurlRootURLStreamHandler(protocol);
+				}
+			}
+			URLStreamHandlerFactoryHolder factoryHolder = findFactory(factories);
 			if (factoryHolder != null) {
 				PlurlStreamHandler shouldHandle = factoryHolder.getHandler(protocol);
 				if (shouldHandle != null) {
@@ -690,8 +705,30 @@ public final class PlurlImpl implements Plurl {
 		return null;
 	}
 
+	/**
+	 * Returns the value of a capability this implementation has, as reported through
+	 * {@link Plurl#PLURL_GET_CAPABILITY}. A capability that is not recognized is
+	 * rejected rather than reported as absent, so that a caller can tell an older
+	 * plurl apart from one that answers.
+	 */
+	static Object getCapability(String capability) throws IOException {
+		if (Plurl.PLURL_CAPABILITY_SELECT_BY_SPEC.equals(capability)) {
+			return Boolean.TRUE;
+		}
+		throw new IOException("Unknown plurl capability: " + capability); //$NON-NLS-1$
+	}
+
 	URLConnection plurlOperation(URL u) {
-		final String path = u.getPath();
+		String opPath = u.getPath();
+		// Tolerate the leading slash of the documented spec form, so that
+		// "plurl://op/<operation>" works as well as the URL(protocol, host, file)
+		// form the convenience methods use.
+		String fullPath = opPath.startsWith("/") ? opPath.substring(1) : opPath; //$NON-NLS-1$
+		// Some operations take an argument appended to the operation, for example
+		// "plurl://op/getCapability/<capability-name>".
+		int argIdx = fullPath.indexOf('/');
+		final String path = argIdx < 0 ? fullPath : fullPath.substring(0, argIdx);
+		final String arg = argIdx < 0 ? null : fullPath.substring(argIdx + 1);
 		return new URLConnection(u) {
 			@Override
 			public void connect() throws IOException {
@@ -699,20 +736,22 @@ public final class PlurlImpl implements Plurl {
 			}
 
 			@Override
-			public Consumer<Object> getContent() throws IOException {
+			public Object getContent() throws IOException {
 				switch (path) {
+				case Plurl.PLURL_GET_CAPABILITY:
+					return getCapability(arg);
 				case PLURL_ADD_URL_STREAM_HANDLER_FACTORY:
-					return (f) -> add((URLStreamHandlerFactory) f);
+					return (Consumer<Object>) (f) -> add((URLStreamHandlerFactory) f);
 				case PLURL_REMOVE_URL_STREAM_HANDLER_FACTORY:
-					return (f) -> remove((URLStreamHandlerFactory) f);
+					return (Consumer<Object>) (f) -> remove((URLStreamHandlerFactory) f);
 				case PLURL_ADD_CONTENT_HANDLER_FACTORY:
-					return (f) -> add((ContentHandlerFactory) f);
+					return (Consumer<Object>) (f) -> add((ContentHandlerFactory) f);
 				case PLURL_REMOVE_CONTENT_HANDLER_FACTORY:
-					return (f) -> remove((ContentHandlerFactory) f);
+					return (Consumer<Object>) (f) -> remove((ContentHandlerFactory) f);
 				case PLURL_REGISTER_IMPLEMENTATION:
-					return (p) -> addImpl(p);
+					return (Consumer<Object>) (p) -> addImpl(p);
 				case PLURL_UNREGISTER_IMPLEMENTATION:
-					return (p) -> removeImpl(p);
+					return (Consumer<Object>) (p) -> removeImpl(p);
 				default:
 					throw new IOException("Unknown plurl operation: " + path); //$NON-NLS-1$
 				}
@@ -809,7 +848,11 @@ public final class PlurlImpl implements Plurl {
 	}
 
 	PlurlStreamHandler findPlurlStreamHandler(String protocol) {
-		URLStreamHandlerFactoryHolder f = findFactory(getURLStreamHandlerFactories());
+		return findPlurlStreamHandler(protocol, null);
+	}
+
+	PlurlStreamHandler findPlurlStreamHandler(String protocol, String spec) {
+		URLStreamHandlerFactoryHolder f = findFactory(getURLStreamHandlerFactories(), protocol, spec);
 		if (f != null) {
 			return f.getHandler(protocol);
 		}
@@ -817,10 +860,26 @@ public final class PlurlImpl implements Plurl {
 	}
 
 	private <F> F findFactory(List<F> factories) {
+		return findFactory(factories, null, null);
+	}
+
+	private <F> F findFactory(List<F> factories, String protocol, String spec) {
 		int numFactories = factories.size();
 		if (numFactories == 1) {
 			// Handle common case of only one; just use it
 			return factories.get(0);
+		}
+		// Give the factories a chance to claim the URL being parsed first. A protocol
+		// may be shared by several factories that can only be told apart by the URL,
+		// and the URL may be used by a caller no factory recognizes from the call
+		// stack.
+		if (spec != null) {
+			for (F f : factories) {
+				if (f instanceof URLStreamHandlerFactoryHolder
+						&& ((URLStreamHandlerFactoryHolder) f).shouldHandleURL(protocol, spec)) {
+					return f;
+				}
+			}
 		}
 		Class<?>[] callStackClasses = getCallStack();
 		for (Class<?> stack : callStackClasses) {
@@ -849,6 +908,21 @@ public final class PlurlImpl implements Plurl {
 		// This means the root or "first" factory may provide protocol handlers for call stacks
 		// that have no classes known to that factory
 		return numFactories > 0 ? factories.get(0) : null;
+	}
+
+	/**
+	 * The optional URL selection method of a factory, or <code>null</code> if it does
+	 * not have one. Unlike {@link #findShouldHandle(Class)} a missing method is not an
+	 * error, because a factory is not required to select on the URL.
+	 */
+	static Method findShouldHandleURL(Class<?> clazz) {
+		try {
+			Method m = clazz.getMethod("shouldHandleURL", String.class, String.class); //$NON-NLS-1$
+			m.setAccessible(true);
+			return m;
+		} catch (NoSuchMethodException e) {
+			return null;
+		}
 	}
 
 	Method findShouldHandle(Class<?> clazz) throws NoSuchMethodException {
@@ -1046,8 +1120,50 @@ public final class PlurlImpl implements Plurl {
 	}
 
 	public class URLStreamHandlerFactoryHolder extends PlurlFactoryHolder<URLStreamHandlerFactory, PlurlStreamHandler> {
+		private final Method shouldHandleURLMethod;
+
 		public URLStreamHandlerFactoryHolder(URLStreamHandlerFactory factory) {
 			super(factory);
+			if (factory instanceof PlurlStreamHandlerFactory) {
+				shouldHandleURLMethod = null;
+			} else {
+				// use reflection in case this Plurl package isn't visible to the
+				// factory impl; a factory that predates the method has none, which is
+				// not an error
+				shouldHandleURLMethod = findShouldHandleURL(factory.getClass());
+			}
+		}
+
+		/**
+		 * Delegates to the wrapped factory the way {@link #shouldHandle(Class)} does.
+		 * Without this, findFactory would only ever ask the holder, which has no
+		 * opinion of its own.
+		 */
+		boolean shouldHandleURL(String protocol, String spec) {
+			URLStreamHandlerFactory f = getFactory();
+			if (f == null) {
+				return false;
+			}
+			if (f instanceof PlurlStreamHandlerFactory) {
+				return ((PlurlStreamHandlerFactory) f).shouldHandleURL(protocol, spec);
+			}
+			if (shouldHandleURLMethod == null) {
+				return false;
+			}
+			try {
+				return (boolean) shouldHandleURLMethod.invoke(f, protocol, spec);
+			} catch (Exception e) {
+				return false;
+			}
+		}
+
+		/**
+		 * Whether this factory selects on the URL for the given protocol at all. Used
+		 * only to decide whether to claim the protocol from the JVM, which happens
+		 * before any URL exists, so the factory is asked with no spec.
+		 */
+		boolean takesOverURLs(String protocol) {
+			return shouldHandleURL(protocol, null);
 		}
 
 		@Override
@@ -1076,12 +1192,9 @@ public final class PlurlImpl implements Plurl {
 		Class<?> checkClass = handler.getClass();
 		while (checkClass != null) {
 			for (Class<?> handlerInterfaces : checkClass.getInterfaces()) {
-				// To determine if we can proxy the handler we look for an interface that
-				// defines a method
-				// public void parseURL(PlurlSetter plurlSetter, URL u, String spec, int start,
-				// int limit);
-				// But we cannot search for it the conventional way because the PlurlSetter may
-				// be a different
+				// To determine if we can proxy the handler we look for an interface that defines a method
+				// public void parseURL(PlurlSetter plurlSetter, URL u, String spec, int start, int limit);
+				// But we cannot search for it the conventional way because the PlurlSetter may be a different
 				// copy from ours.
 				for (Method m : handlerInterfaces.getMethods()) {
 					if (m.getName().equals("parseURL")) { //$NON-NLS-1$
@@ -1092,9 +1205,8 @@ public final class PlurlImpl implements Plurl {
 							if (plurlSetterCandidate.isInterface()) {
 								try {
 									// try finding the appropriate setURL method
-									plurlSetterCandidate.getMethod("setURL", URL.class, String.class, String.class, //$NON-NLS-1$
-											Integer.TYPE, String.class, String.class, String.class, String.class,
-											String.class);
+									plurlSetterCandidate.getMethod("setURL", URL.class, String.class, String.class, Integer.TYPE, String.class, String.class,
+											String.class, String.class, String.class);
 								} catch (Exception e) {
 									// move on to the next interface
 									continue;
@@ -1250,8 +1362,8 @@ public final class PlurlImpl implements Plurl {
 			invoke(setURL, u, protocol, host, port, authority, userInfo, path, query, ref);
 		}
 
-		@SuppressWarnings("deprecation")
 		@Override
+		@Deprecated
 		public void setURL(URL u, String protocol, String host, int port, String file, String ref) {
 			invoke(setURLDeprecated, u, protocol, host, port, file, ref);
 		}
@@ -1415,17 +1527,21 @@ public final class PlurlImpl implements Plurl {
 		private final AtomicReference<PlurlStreamHandler> builtin = new AtomicReference<>();
 
 		private PlurlStreamHandler lookupPlurlStreamHandler(URL u) {
+			return lookupPlurlStreamHandler(u, null);
+		}
+
+		private PlurlStreamHandler lookupPlurlStreamHandler(URL u, String spec) {
 			if (u != null && isMultiplexing(getURLStreamHandlerFactories())) {
 				// Record the handler found for the URL;
 				// This allows to consistently use the same handler for the
 				// life of the URL object when we are multiplexing.
-				return urlToHandler.get(u, this::findPlurlStreamHandlerImpl);
+				return urlToHandler.get(u, () -> findPlurlStreamHandlerImpl(spec));
 			}
-			return findPlurlStreamHandlerImpl();
+			return findPlurlStreamHandlerImpl(spec);
 		}
 
-		private PlurlStreamHandler findPlurlStreamHandlerImpl() {
-			PlurlStreamHandler h = findPlurlStreamHandler(protocol);
+		private PlurlStreamHandler findPlurlStreamHandlerImpl(String spec) {
+			PlurlStreamHandler h = findPlurlStreamHandler(protocol, spec);
 			if (h == null) {
 				h = findBuiltin();
 				if (h == null) {
@@ -1488,7 +1604,7 @@ public final class PlurlImpl implements Plurl {
 
 		@Override
 		protected void parseURL(URL u, String spec, int start, int limit) {
-			PlurlStreamHandler h = lookupPlurlStreamHandler(u);
+			PlurlStreamHandler h = lookupPlurlStreamHandler(u, spec);
 			if (setHandler(u, h)) {
 				h.parseURL(null, u, spec, start, limit);
 			} else {

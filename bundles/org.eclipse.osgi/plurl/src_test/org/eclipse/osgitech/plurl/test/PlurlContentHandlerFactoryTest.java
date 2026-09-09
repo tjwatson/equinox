@@ -1,22 +1,26 @@
 /*******************************************************************************
- * Copyright (c) 2025 IBM Corporation and others.
+ * Copyright (c) Contributors to the Eclipse Foundation
  *
- * This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License 2.0
- * which accompanies this distribution, and is available at
- * https://www.eclipse.org/legal/epl-2.0/
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * SPDX-License-Identifier: EPL-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Contributors:
- *     IBM Corporation - initial API and implementation
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0
  *******************************************************************************/
-package org.eclipse.equinox.plurl.test;
+package org.eclipse.osgitech.plurl.test;
 
-import static org.eclipse.equinox.plurl.test.PlurlStreamHandlerFactoryTest.checkProtocol;
-import static org.eclipse.equinox.plurl.test.PlurlTestHandlers.canReflect;
-import static org.eclipse.equinox.plurl.test.PlurlTestHandlers.createTestContentHandlerFactory;
-import static org.eclipse.equinox.plurl.test.PlurlTestHandlers.createTestURLStreamHandlerFactory;
+import static org.eclipse.osgitech.plurl.test.PlurlStreamHandlerFactoryTest.checkProtocol;
+import static org.eclipse.osgitech.plurl.test.PlurlTestHandlers.canReflect;
+import static org.eclipse.osgitech.plurl.test.PlurlTestHandlers.createTestContentHandlerFactory;
+import static org.eclipse.osgitech.plurl.test.PlurlTestHandlers.createTestURLStreamHandlerFactory;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
@@ -28,12 +32,12 @@ import java.net.URL;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import org.eclipse.equinox.plurl.test.PlurlStreamHandlerFactoryTest.TesterClass;
-import org.eclipse.equinox.plurl.test.PlurlStreamHandlerFactoryTest.TesterClass1;
-import org.eclipse.equinox.plurl.test.PlurlStreamHandlerFactoryTest.TesterClass2;
-import org.eclipse.equinox.plurl.test.PlurlTestHandlers.TestContentHandlerFactory;
-import org.eclipse.equinox.plurl.test.PlurlTestHandlers.TestFactoryType;
-import org.eclipse.equinox.plurl.test.PlurlTestHandlers.TestURLStreamHandlerFactory;
+import org.eclipse.osgitech.plurl.test.PlurlStreamHandlerFactoryTest.TesterClass;
+import org.eclipse.osgitech.plurl.test.PlurlStreamHandlerFactoryTest.TesterClass1;
+import org.eclipse.osgitech.plurl.test.PlurlStreamHandlerFactoryTest.TesterClass2;
+import org.eclipse.osgitech.plurl.test.PlurlTestHandlers.TestContentHandlerFactory;
+import org.eclipse.osgitech.plurl.test.PlurlTestHandlers.TestFactoryType;
+import org.eclipse.osgitech.plurl.test.PlurlTestHandlers.TestURLStreamHandlerFactory;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
