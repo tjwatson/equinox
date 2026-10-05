@@ -38,6 +38,7 @@ public final class ModuleRevisions implements BundleRevisions {
 	private boolean uninstalled = false;
 	/* @GuardedBy("monitor") */
 	private ModuleRevision uninstalledCurrent;
+	private int nextGeneration = 0;
 
 	ModuleRevisions(Module module, ModuleContainer container) {
 		this.module = module;
@@ -97,6 +98,7 @@ public final class ModuleRevisions implements BundleRevisions {
 
 	ModuleRevision addRevision(ModuleRevision revision) {
 		synchronized (monitor) {
+			revision.setRevisionGeneration(nextGeneration++);
 			revisions.add(0, revision);
 		}
 		return revision;

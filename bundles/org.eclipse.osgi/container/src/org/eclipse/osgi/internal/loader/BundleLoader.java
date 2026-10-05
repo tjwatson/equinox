@@ -987,7 +987,7 @@ public class BundleLoader extends ModuleLoader {
 		String name = revision.getSymbolicName();
 		if (name == null)
 			name = "unknown"; //$NON-NLS-1$
-		return name + '_' + revision.getVersion();
+		return name + '_' + revision.getVersion() + '[' + revision.getGeneration() + ']';
 	}
 
 	/**

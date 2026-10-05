@@ -45,6 +45,7 @@ public final class ModuleRevision implements BundleRevision {
 	private final ModuleRevisions revisions;
 	private final Object revisionInfo;
 	private volatile Boolean lazyActivationPolicy = null;
+	private volatile int generation = 0;
 
 	ModuleRevision(String symbolicName, Version version, int types, NamespaceList.Builder<GenericInfo> capabilityInfos,
 			NamespaceList.Builder<GenericInfo> requirementInfos, ModuleRevisions revisions, Object revisionInfo) {
@@ -207,8 +208,8 @@ public final class ModuleRevision implements BundleRevision {
 	public String toString() {
 		List<ModuleCapability> identities = getModuleCapabilities(IdentityNamespace.IDENTITY_NAMESPACE);
 		if (identities.isEmpty())
-			return super.toString();
-		return identities.get(0).toString();
+			return super.toString() + '[' + generation + ']';
+		return identities.get(0).toString() + '[' + generation + ']';
 	}
 
 	NamespaceList<ModuleCapability> getCapabilities() {
@@ -217,5 +218,24 @@ public final class ModuleRevision implements BundleRevision {
 
 	NamespaceList<ModuleRequirement> getRequirements() {
 		return requirements;
+	}
+
+	void setRevisionGeneration(int generation) {
+		this.generation = generation;
+	}
+
+	/**
+	 * When a revision is added to a {@code ModuleRevisions} it is assigned a
+	 * generation. The first generation added to a {@code ModuleRevisions} gets a
+	 * generation value of zero. Each subsequent revision added gets a monotonically
+	 * increasing generation value. The generation is only intended for debug
+	 * information. Its value has no additional meaning at runtime other than to
+	 * indicate the order the revision was added to the {@code ModuleRevisions}
+	 * 
+	 * @return the revision generation
+	 * @since 3.25
+	 */
+	public int getGeneration() {
+		return generation;
 	}
 }
